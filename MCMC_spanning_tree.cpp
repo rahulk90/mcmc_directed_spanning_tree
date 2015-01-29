@@ -13,6 +13,7 @@
 #include <fstream>
 #include <cstdlib>
 #include <boost/graph/random_spanning_tree.hpp>
+#include <boost/graph/iteration_macros.hpp>
 #include <boost/graph/named_function_params.hpp>
 #include <boost/array.hpp>
 #include <string>
@@ -28,8 +29,8 @@
 #define DEBUG_MSG(str) do { } while ( false )
 #endif
 
-//Parameters for the MCMC algorithm
-int BURNIN = 50;
+//Parameters for the MC algorithm
+int WEIGHTED = 0;
 int MAXITS  = 10000;
 
 
@@ -55,7 +56,10 @@ void initializeGraph(std::vector<boost::tuple<int,int,double> > edgeList,
         v2 = boost::get<1>(t);
         wt = boost::get<2>(t);
         DEBUG_MSG("Loading: "<<v1<<"->"<<v2<<" : "<<wt);
-        add_edge(v1,v2,wt,*g);
+		//TODO: Investigate why 
+		//you have to use this hack. Likely assumption
+		//in BOOST library
+        add_edge(v1,v2,100/wt,*g);
         map->insert(unordered_map::value_type(getKey(v1,v2),0));
     }
 }
@@ -70,27 +74,25 @@ void runTest(int n_vertices,
 	std::vector<double>* root_prob)
 {
     digraph_t g;
-    //std::vector<double> root_prob (n_vertices);
-    //unordered_map edgeProb;
 
     initializeGraph(edgeList,&g,edgeProb);
     for (unordered_map::iterator it = edgeProb->begin(); it != edgeProb->end(); ++it) 
         DEBUG_MSG(it->first << ", " << it->second);
     
-    // boost::shared_array_property_map
-    // < 
-    // double, boost::property_map<digraph_t, boost::edge_weight_t> 
-    // > weight(num_edges(g), get(edge_weight, g));
-
-    //BGL_FORALL_EDGES(e, g, digraph_t) {put(weight, e, (1. + get(edge_index, g, e)) / num_edges(g));}
   	#ifdef DEBUG
     BGL_FORALL_EDGES(e, g, digraph_t) 
     {
-        std::cout<<e<<std::endl;
-        //put(weight, e, (1. + get(edge_index, g, e)) / num_edges(g));
+        std::cout<<e<<" W="<<get(boost::edge_weight, g, e)<<std::endl;
     }
+	for(int v=0;v<n_vertices;v++)
+	{
+		double weight_sum = 0;
+		BGL_FORALL_OUTEDGES(v, e, g, digraph_t) {std::cout<<e<<", ";weight_sum += get(get(boost::edge_weight,g), e);}
+		std::cout<<v<<"->"<<weight_sum<<std::endl;
+	}
     #endif
     std::vector<int> predecessors (n_vertices);
+	std::vector<double> edgeMap (edgeList.size());
     
     for(int i=0;i<n_vertices;i++)
     {
@@ -101,17 +103,38 @@ void runTest(int n_vertices,
     boost::random::uniform_int_distribution<> dist(0, n_vertices-1);
     for(int i=1;i<=MAXITS;i++)
     {
+		std::cout<<".";
+		std::fill(predecessors.begin(),predecessors.end(),0);
+		if(i%500==0)
+		{
+			std::cout<<std::endl;
+		}
         //Sample root uniformly 
         root = dist(rng);
         #ifdef DEBUG_L2 //Since the DEBUG_MSG macro prints newline
             std::cout<<i<<"|"<<root<<"|,"<<std::flush;
         #endif
+		if(WEIGHTED==1)
+		{
         boost::random_spanning_tree(g,rng,
             boost::predecessor_map(
                 boost::make_iterator_property_map(
-                    predecessors.begin(), get(boost::vertex_index, g))).
-            root_vertex(root));
-
+                    predecessors.begin(), get(boost::vertex_index, g)))
+            .root_vertex(root)
+			.weight_map(get(boost::edge_weight,g))
+								);
+		}
+		else
+		{
+        boost::random_spanning_tree(g,rng,
+            boost::predecessor_map(
+                boost::make_iterator_property_map(
+                    predecessors.begin(), get(boost::vertex_index, g)))
+            .root_vertex(root));
+		}
+#ifdef DEBUG
+		std::cout<<"Printing spanning tree rooted at "<<root<<std::endl;
+#endif
         //Update counts
         (*root_prob)[root]+=1;
         for(int i=0;i<n_vertices;i++)
@@ -119,6 +142,9 @@ void runTest(int n_vertices,
             if(predecessors[i]!=-1)
             {
                 edgeProb->at(getKey(predecessors[i],i)) +=1;
+#ifdef DEBUG
+				std::cout<<predecessors[i]<<"--"<<i<<" Key: "<<getKey(predecessors[i],i)<<std::endl;
+#endif
             }
             else
             {
@@ -195,19 +221,24 @@ int main(int argc,char* argv[])
 	if (argc < 3)
 	{
 		std::cerr << "Usage (* indicates optional): " << PNAME
-			 << " <input file name> <output file name> <BURNIN>* <MAXIT>*\n";
+			 << " <input file name> <output file name> <Weighted=0>* <MAXIT=10K>*\n";
 		return EXIT_FAILURE;
 	}
 	//Modify global constants if specified
 	if (argc>=4)
 	{
-		BURNIN = atoi(argv[3]);
-		DEBUG_MSG("Modifying BURNIN to "<<BURNIN);
+		WEIGHTED = atoi(argv[3]);
+		std::cout<<"Modifying WEIGHTED to "<<WEIGHTED<<std::endl;
+		if(WEIGHTED!=0 && WEIGHTED!=1)
+		{
+			std::cerr <<"WEIGHTED must be 1/0"<<std::endl;
+			return EXIT_FAILURE;
+		}
 	}
 	if (argc==5)
 	{
 		MAXITS = atoi(argv[4]);
-		DEBUG_MSG("Modifying MAXITS to "<<MAXITS);
+		std::cout<<"Modifying MAXITS to "<<MAXITS<<std::endl;
 	}
 	DEBUG_MSG("---Calling <MCMC_spanning_tree>---\nINPUT FILE: "<<argv[1]<<"\nOUTPUT FILE: "<<argv[2]);
 	return MCMC_spanning_tree(argv[1],argv[2]);

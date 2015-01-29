@@ -35,7 +35,12 @@ typedef boost::adjacency_list <
 
 typedef boost::unordered_map<std::string,double> unordered_map;
 boost::random::mt19937 rng;
+
+#ifdef DEBUG_L2
+int MAXIT = 10;
+#else
 int MAXIT = 10000;
+#endif
 
 /*
 Macro to return "v1->v2"
@@ -119,16 +124,30 @@ void runTest(int n_vertices,std::vector<boost::tuple<int,int,double> > edgeList)
         
         //Update counts
         root_prob[root]+=1;
+        #ifdef DEBUG_L2 
+        std::cout<<"Tree Found"<<std::endl;
+        #endif
+
         for(int i=0;i<n_vertices;i++)
         {
             if(predecessors[i]!=-1)
             {
                 edgeProb.at(getKey(predecessors[i],i)) +=1;
+                #ifdef DEBUG_L2
+                std::cout<<predecessors[i]<<"->"<<i<<std::endl;
+                #endif
             }
             else
             {
+            	#ifdef DEBUG_L2
+            	std::cout<<"r<"<<i<<">"std::endl;;
+            	#endif
                 if(root!=i)
+                {
                     std::cout<<"Error. root="<<root<<" i="<<i<<std::endl;
+                    exit(1);
+                }
+
             }
             
         }
@@ -161,14 +180,14 @@ void tc1()
     std::cout<<"----------- 4 Node Grid (Uniform) ------------"<<std::endl;
     std::vector<boost::tuple<int,int,double> > edgeList = 
     {
-        boost::make_tuple(0,1,10), 
-        boost::make_tuple(1,0,10),
-        boost::make_tuple(3,1,10), 
-        boost::make_tuple(1,3,10),
-        boost::make_tuple(2,3,10), 
-        boost::make_tuple(3,2,10),
-        boost::make_tuple(0,2,10), 
-        boost::make_tuple(2,0,10)
+        boost::make_tuple(0,1,1), 
+        boost::make_tuple(1,0,1),
+        boost::make_tuple(3,1,100), 
+        boost::make_tuple(1,3,1),
+        boost::make_tuple(2,3,100), 
+        boost::make_tuple(3,2,1),
+        boost::make_tuple(0,2,100), 
+        boost::make_tuple(2,0,1)
     };
     runTest(n_vertices,edgeList);
     std::cout<<"----------- Done (Check Results Visually) ------------"<<std::endl;

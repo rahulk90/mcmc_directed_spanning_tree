@@ -7,7 +7,7 @@ CFLAGS  = -g -Wall
 TARGET = MCMC_spanning_tree
 TEST = random_spanning_tree_test
 
-#Set to -DDEBUG to compile with debug statements
+#Set to -DDEBUG, -DDEBUG_L2 (only for test) to compile with debug statements
 DEBUG   = #-DDEBUG 
 
 all: $(TARGET) $(TEST)
